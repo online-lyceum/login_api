@@ -1,43 +1,60 @@
 import base64
-import hmac
-import struct
-import sys
-import time
+from pydantic import BaseModel
+import pyotp
 
 # Work with database and tokens
 
 TOKEN_TIME_ALIVE = 1800  # In seconds
 
-
-def hotp(key, counter, digits=6, digest='sha1'):
-    '''Generate HOTP(token based by counter)'''
-    key = base64.b32decode(key.upper() + '=' * ((8 - len(key)) % 8))
-    counter = struct.pack('>Q', counter)
-    mac = hmac.new(key, counter, digest).digest()
-    offset = mac[-1] & 0x0f
-    binary = struct.unpack('>L', mac[offset:offset+4])[0] & 0x7fffffff
-    return str(binary)[-digits:].zfill(digits)
+users = []
+tokens = {}
 
 
-def totp(key, digits=6, digest='sha1'):
-    '''
-    Generate TOTP(token based by time
-    :param time_step: Time which token is valid
-    '''
-    return hotp(key, int(time.time() / TOKEN_TIME_ALIVE), digits, digest)
+class Token(BaseModel):
+    key: str
+    user_login: str
+
+    @staticmethod
+    async def generate_token(user_login: str, user_password: str):
+        key = pyotp.TOTP(base64.b32encode(user_password.encode()),
+                         12, interval=TOKEN_TIME_ALIVE).now()
+        tokens[user_login] = tokens.get(user_login, []) + [key]
+        return Token(key=key, user_login=user_login)
+
+    @staticmethod
+    async def validate_token(user_login: str, token_key: str):
+        try:
+            psw = [u.password for u in users if u.login == user_login][0]
+        except IndexError:
+            return False
+        psw = base64.b32encode(psw.encode())
+        for token in tokens.get(user_login, []):
+            if token == token_key:
+                if not pyotp.TOTP(psw, 12, interval=TOKEN_TIME_ALIVE).verify(token, valid_window=2):
+                    tokens[user_login].remove(token)
+                    return False
+                return True
+        return False
 
 
-def verify_token(token: str) -> bool:
-    # TODO Check if totp for now equal token
-    # Maybe pyotp from pypi
-    pass
+class User(BaseModel):
+    login: str
+    password: str
 
+    @staticmethod
+    async def exist(login: str):
+        for u in users:
+            if u.login == login:
+                return True
+        return False
 
-def main():
-    args = [int(x) if x.isdigit() else x for x in sys.argv[1:]]
-    for key in sys.stdin:
-        print(totp(key.strip(), *args))
+    @staticmethod
+    async def create(login: str, password: str):
+        users.append(User(login=login, password=password))
 
-
-if __name__ == '__main__':
-    main()
+    @staticmethod
+    async def validate_password(login: str, password: str):
+        for user in users:
+            if user.login == login:
+                return user.password == password
+        return False
