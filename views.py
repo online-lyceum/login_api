@@ -1,8 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from starlette import status
 from starlette.responses import Response
 
-from data import User, Token
+from db.data import User, Token
 
 routes = APIRouter()
 
@@ -25,7 +25,7 @@ async def create_user(user: User):
 async def new_token(user: User):
     if not await User.exist(user.login):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    if not User.validate_password(user.login, user.password):
+    if not await User.validate_password(user.login, user.password):
         return Response(status_code=status.HTTP_401_UNAUTHORIZED)
     token = await Token.generate_token(user.login, user.password)
     return token
