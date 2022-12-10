@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from starlette import status
 from starlette.responses import Response
 
-from db.data import User, Token
+from login_api.db.data import User, Token
 
 routes = APIRouter()
 
@@ -21,7 +21,7 @@ async def create_user(user: User):
     return Response(status_code=status.HTTP_200_OK)
 
 
-@routes.get("/user/new_token")
+@routes.post("/user/new_token")
 async def new_token(user: User):
     if not await User.exist(user.login):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
@@ -31,7 +31,7 @@ async def new_token(user: User):
     return token
 
 
-@routes.get("/user/validate_token")
+@routes.put("/user/validate_token")
 async def validate_token(token: Token):
     '''
     :ret: HTTP_404_NOT_FOUND if token not found, HTTP_200_OK if token exist for user
@@ -39,3 +39,4 @@ async def validate_token(token: Token):
     if not await Token.validate_token(token.user_login, token.key):
         return Response(status_code=status.HTTP_404_NOT_FOUND)
     return Response(status_code=status.HTTP_200_OK)
+

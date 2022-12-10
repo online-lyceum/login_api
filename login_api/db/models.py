@@ -1,7 +1,7 @@
 from sqlalchemy import Column
 from sqlalchemy import String
 from sqlalchemy import Integer
-from db.base import Base
+from login_api.db.base import Base
 
 
 class UserDB(Base):
